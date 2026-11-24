@@ -10,6 +10,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="16 a las 18">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px)}[hidden]{display:none!important}
 /* Concepto Figurita: el grupo como un álbum de figuritas.
@@ -356,6 +359,11 @@ button.li:hover{box-shadow:0 0 0 2px var(--line-solid)}
 .lig-h{position:absolute;right:9%;top:6px;z-index:3;background:var(--ink);color:var(--sun);border-radius:999px;padding:7px 13px 8px;font-size:17px;letter-spacing:1px;line-height:1;transform:rotate(6deg);box-shadow:0 0 0 4px #fff,0 8px 18px rgba(14,27,61,.25)}
 .copas-card{display:flex;flex-direction:column;gap:10px}
 .copas-card .pts-t td{padding:9px 0}
+/* instalar la app */
+.inst-head{display:flex;gap:14px;align-items:center}
+.inst-head img{width:64px;height:64px;border-radius:16px;flex:none;box-shadow:0 6px 16px rgba(14,27,61,.2)}
+.inst-pasos{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px;font-size:16px;line-height:1.4}
+.inst-pasos svg{width:22px;height:22px;vertical-align:-5px;color:#0A84FF}
 </style>
 </head>
 <body>
@@ -1308,6 +1316,7 @@ function sheetAjustes(){
         <label class="btn btn-s" for="cf-portada" style="cursor:pointer">${IC.cam} Cambiar la foto de portada</label><input id="cf-portada" type="file" accept="image/*" hidden onchange="subirFoto(this,'portada',1400,1000,false)">
         <button class="btn btn-d" onclick="salirOrg()">Salir del modo organizador</button></div>`
     : `<form class="stack" onsubmit="event.preventDefault();entrarOrg()"><div class="field"><label for="pin">PIN del organizador</label><input id="pin" type="password" inputmode="numeric" autocomplete="off"></div><button class="btn btn-s" type="submit">Entrar</button></form>`}
+    ${!enApp() ? `<button class="btn btn-s" onclick="sheetInstalar()">Instalar la app en el teléfono</button>` : ""}
     <div class="lbl" style="margin-top:6px">Conexión</div>
     <div class="note">${CLOUD ? "Conectada a la planilla del grupo. Todos ven lo mismo y se actualiza sola cada 20 segundos." : "Modo prueba: los datos quedan en este dispositivo. Para que el grupo vea lo mismo, falta conectar la planilla."}${DEMO ? " PIN de prueba: 1618." : ""}</div>
     ${!CLOUD && !DEMO ? `<div class="row-btns"><button class="btn btn-s sm" onclick="pruebaAnotar(16)">Anotar 16 de prueba</button><button class="btn btn-s sm" onclick="pruebaAnotar(12)">Anotar 12</button><button class="btn btn-s sm" onclick="pruebaAnotar(8)">Anotar 8</button></div>
@@ -1342,6 +1351,53 @@ function boot(){
     document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") refresh(); });
   }
   document.addEventListener("keydown", e => { if(e.key === "Escape") closeSheet(); });
+  if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
+  setTimeout(() => ofrecerInstalar(0), esAndroid() ? 2500 : 1200);
+}
+
+/* ---------- instalar en el teléfono ----------
+   Android (Chrome): botón "Instalar" que abre la instalación del sistema.
+   iPhone: Apple no deja instalar desde la página, así que el cartel muestra los pasos. */
+const INST = {ev:null};
+const enApp = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const esIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const esAndroid = () => /Android/.test(navigator.userAgent);
+const IC_SHARE_IOS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Compartir"><path d="M12 14V3M8 7l4-4 4 4"/><path d="M8 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"/></svg>';
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); INST.ev = e;
+  if($("#inst-sheet") && $("#sheet").classList.contains("on")) sheetInstalar();   // si ya mostraba los pasos, pasa al botón
+});
+window.addEventListener("appinstalled", () => { INST.ev = null; LS.set("p1618_inst", "ok"); closeSheet(); toast("¡Listo! Ya la tenés en la pantalla de inicio"); });
+
+function sheetInstalar(){
+  const head = `<div id="inst-sheet" class="inst-head"><img src="apple-touch-icon.png" alt=""><div><h3 style="margin:0">Instalá la app</h3>
+    <p class="muted" style="margin:4px 0 0">Queda en tu pantalla de inicio y se abre a pantalla completa, como cualquier app.</p></div></div>`;
+  let body;
+  if(INST.ev) body = `<button class="btn btn-p" onclick="instalarYa()">Instalar</button>`;
+  else if(esIOS()) body = `<ol class="inst-pasos">
+      <li>Tocá ${IC_SHARE_IOS} <b>Compartir</b>, abajo en el centro de Safari.</li>
+      <li>Bajá en la lista y tocá <b>Agregar a inicio</b>.</li>
+      <li>Arriba a la derecha, tocá <b>Agregar</b>.</li></ol>
+    <p class="muted small" style="margin:0">¿La abriste desde WhatsApp y no ves Compartir? Tocá el ícono de Safari o <b>Abrir en Safari</b> y seguí desde ahí.</p>`;
+  else body = `<ol class="inst-pasos">
+      <li>Tocá el menú <b>⋮</b>, arriba a la derecha.</li>
+      <li>Tocá <b>Instalar app</b> o <b>Agregar a la pantalla principal</b>.</li></ol>
+    <p class="muted small" style="margin:0">¿La abriste desde WhatsApp? Primero tocá <b>⋮</b> → <b>Abrir en Chrome</b>.</p>`;
+  openSheet(`${head}<div class="stack" style="margin-top:16px">${body}<button class="btn btn-s" onclick="noInstalar()">Ahora no</button></div>`);
+}
+async function instalarYa(){
+  const e = INST.ev; if(!e) return sheetInstalar();
+  INST.ev = null; e.prompt();
+  try{ const r = await e.userChoice; if(r.outcome === "accepted"){ LS.set("p1618_inst", "ok"); closeSheet(); } else sheetInstalar(); }catch(err){}
+}
+function noInstalar(){ LS.set("p1618_inst", Date.now()); closeSheet(); }
+/* aparece sola en el teléfono; si dijo "Ahora no", vuelve a preguntar a los 3 días */
+function ofrecerInstalar(intentos){
+  if(enApp() || !(esIOS() || esAndroid())) return;
+  const v = LS.get("p1618_inst", 0);
+  if(v === "ok" || (v && Date.now() - v < 3*864e5)) return;
+  if($("#sheet").classList.contains("on")){ if(intentos < 20) setTimeout(() => ofrecerInstalar(intentos+1), 3000); return; }
+  sheetInstalar();
 }
 boot();
 
